@@ -1,0 +1,40 @@
+version: "3.9"
+
+services:
+
+  flask-app:
+    build: .
+    container_name: ai-log-app
+    ports:
+      - "5001:5001"
+    depends_on:
+      - redis
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - OLLAMA_URL=http://host.docker.internal:11434/api/generate
+    volumes:
+      - ./logs:/app/logs
+    restart: always
+
+  mcp-server:
+    build: .
+    container_name: ai-log-mcp
+    command: python -m app.mcp.server
+    depends_on:
+      - redis
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - OLLAMA_URL=http://host.docker.internal:11434/api/generate
+    volumes:
+      - ./logs:/app/logs
+    restart: always
+
+  redis:
+    image: redis:7
+    container_name: ai-log-redis
+    ports:
+      - "6379:6379"
+    restart: always
+
+volumes:
+  ollama_data:

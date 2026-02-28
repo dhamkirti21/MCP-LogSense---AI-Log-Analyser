@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>AI Log Analyzer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial;
+            background: #f4f6f9;
+            margin: 30px;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .card h2 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .card p {
+            font-size: 22px;
+            margin: 10px 0 0 0;
+            font-weight: bold;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        th,
+        td {
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+            font-size: 14px;
+        }
+
+        th {
+            background: #eee;
+        }
+
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+
+        .warn {
+            color: orange;
+            font-weight: bold;
+        }
+
+        .card canvas {
+            height: 300px !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>AI Log Analyzer Dashboard</h1>
+
+    <div class="grid">
+        <div class="card">
+            <h2>Total Logs</h2>
+            <p id="totalLogs">0</p>
+        </div>
+
+        <div class="card">
+            <h2>Total Anomalies</h2>
+            <p id="totalAnomalies">0</p>
+        </div>
+
+        <div class="card">
+            <h2>Error Rate</h2>
+            <p id="errorRate">0%</p>
+        </div>
+    </div>
+
+    <div class="card" style="margin-bottom:30px;">
+        <h2>Error Trend</h2>
+        <canvas id="errorChart"></canvas>
+    </div>
+
+    <h2>Recent Logs</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Level</th>
+                <th>Message</th>
+            </tr>
+        </thead>
+        <tbody id="logTable"></tbody>
+    </table>
+
+    <br><br>
+
+    <h2>Recent Anomalies</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Level</th>
+                <th>Message</th>
+                <th>Severity</th>
+                <th>Reason</th>
+            </tr>
+        </thead>
+        <tbody id="anomalyTable"></tbody>
+    </table>
+
+    <script>
+        let chart;
+        let initialized = false;
+
+        async function fetchData() {
+            const logs = await fetch('/logs').then(r => r.json());
+            const anomalies = await fetch('/anomalies').then(r => r.json());
+            const metrics = await fetch('/metrics').then(r => r.json());
+
+            document.getElementById("totalLogs").innerText = metrics.total_logs;
+            document.getElementById("totalAnomalies").innerText = metrics.total_anomalies;
+            document.getElementById("errorRate").innerText =
+                (metrics.error_rate * 100).toFixed(2) + "%";
+
+            updateLogsTable(logs);
+            updateAnomalyTable(anomalies);
+            updateChart(logs);
+        }
+
+        function updateLogsTable(logs) {
+            const logTable = document.getElementById("logTable");
+            logTable.innerHTML = "";
+
+            logs.forEach(l => {
+                const row = document.createElement("tr");
+
+                row.innerHTML = `
+            <td>${l.timestamp}</td>
+            <td class="${l.level === 'ERROR' ? 'error' :
+                        l.level === 'WARN' ? 'warn' : ''}">
+                ${l.level}
+            </td>
+            <td>${l.message}</td>
+        `;
+
+                logTable.appendChild(row);
+            });
+        }
+
+        function updateAnomalyTable(anomalies) {
+            const anomalyTable = document.getElementById("anomalyTable");
+            anomalyTable.innerHTML = "";
+
+            anomalies.forEach(a => {
+                const row = document.createElement("tr");
+
+                row.innerHTML = `
+            <td>${a.timestamp}</td>
+            <td class="error">${a.level}</td>
+            <td>${a.message}</td>
+            <td>${a.severity || ''}</td>
+            <td>${a.reason || ''}</td>
+        `;
+
+                anomalyTable.appendChild(row);
+            });
+        }
+
+        function updateChart(logs) {
+            const infoCount = logs.filter(l => l.level === "INFO").length;
+            const warnCount = logs.filter(l => l.level === "WARN").length;
+            const errorCount = logs.filter(l => l.level === "ERROR").length;
+
+            if (!initialized) {
+                chart = new Chart(document.getElementById("errorChart"), {
+                    type: 'bar',
+                    data: {
+                        labels: ['INFO', 'WARN', 'ERROR'],
+                        datasets: [{
+                            label: 'Log Count',
+                            data: [infoCount, warnCount, errorCount]
+                        }]
+                    },
+                    options: {
+                        animation: false,
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                });
+
+                initialized = true;
+            } else {
+                chart.data.datasets[0].data = [infoCount, warnCount, errorCount];
+                chart.update();
+            }
+        }
+
+        setInterval(fetchData, 3000);
+        fetchData();
+    </script>
+
+</body>
+
+</html>
